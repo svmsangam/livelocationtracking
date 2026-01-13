@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Placeholder for future Map (Google Map / Mapbox) -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Live Location Client Running"
+        android:textSize="16sp"
+        android:layout_gravity="center" />
+
+    <!-- Small debug overlay (latest GPS fix) -->
+    <TextView
+        android:id="@+id/tvLocationDebug"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#AA000000"
+        android:textColor="#FFFFFF"
+        android:padding="8dp"
+        android:text="Waiting for location..."
+        android:textSize="12sp"
+        android:layout_margin="12dp"
+        android:layout_gravity="top|start" />
+
+</FrameLayout>
