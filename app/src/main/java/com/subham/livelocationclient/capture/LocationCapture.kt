@@ -1,7 +1,6 @@
 package com.example.livelocationclient.capture
 
 import android.annotation.SuppressLint
-import android.util.Log
 import com.google.android.gms.location.*
 import com.subham.livelocationclient.capture.RawLocationFix
 import com.subham.livelocationclient.debug.AppLogger
@@ -44,7 +43,7 @@ class LocationCapture(
     @SuppressLint("MissingPermission")
     fun start(hasLocationPermission: Boolean) {
         if (!hasLocationPermission) {
-            Log.w(TAG, "start() ignored — location permission not granted")
+            AppLogger.d(TAG, "start() ignored — location permission not granted")
             return
         }
 

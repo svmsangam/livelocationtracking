@@ -2,16 +2,16 @@ package com.subham.livelocationclient
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import com.example.livelocationclient.capture.LocationCapture
 import com.google.android.gms.location.LocationServices
+import com.subham.livelocationclient.capture.service.LocationForegroundService
 import com.subham.livelocationclient.debug.AppLogger
 import com.subham.livelocationclient.debug.DebugLogActivity
+import com.subham.livelocationclient.permission.hasLocationPermission
 
 private const val TAG = "MainActivity"
 
@@ -24,7 +24,6 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 AppLogger.d(TAG, "Location permission granted")
-                startLocationCapture()
             } else {
                 AppLogger.d(TAG, "Location permission denied")
             }
@@ -53,38 +52,30 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         AppLogger.d(TAG, "onStart")
-
-        // App may return from background with permission already granted
-        if (hasLocationPermission()) {
-            startLocationCapture()
-        }
     }
 
     override fun onStop() {
         AppLogger.d(TAG, "onStop")
-        locationCapture?.stop()   // SAFE
         super.onStop()
     }
 
     private fun checkPermissionAndStart() {
         if (hasLocationPermission()) {
-            AppLogger.d(TAG, "Permission already granted")
-            startLocationCapture()
+            startLocationService()
         } else {
             AppLogger.d(TAG, "Requesting location permission")
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
 
-    private fun startLocationCapture() {
-        AppLogger.d(TAG, "Starting LocationCapture")
-        locationCapture?.start(hasLocationPermission())
+    private fun startLocationService() {
+        AppLogger.d(TAG, "Starting location foreground service.....")
+        val intent = Intent(this, LocationForegroundService::class.java)
+        startForegroundService(intent)
     }
 
-    private fun hasLocationPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+    private fun stopLocationService() {
+        val intent = Intent(this, LocationForegroundService::class.java)
+        stopService(intent)
     }
 }
