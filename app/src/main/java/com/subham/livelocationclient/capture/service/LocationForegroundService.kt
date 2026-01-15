@@ -5,14 +5,25 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.example.livelocationclient.capture.LocationCapture
+import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.subham.livelocationclient.R
+import com.subham.livelocationclient.capture.RawLocationFix
 import com.subham.livelocationclient.debug.AppLogger
 import com.subham.livelocationclient.permission.hasLocationPermission
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 
 private const val TAG = "LocationForegroundService"
 
@@ -23,12 +34,22 @@ class LocationForegroundService : Service() {
         const val NOTIFICATION_ID = 1001
     }
 
-    private lateinit var locationCapture: LocationCapture
+    private val _locationFlow = MutableSharedFlow<RawLocationFix>(
+        replay = 1, // Keeps last emitted item for new subscribers
+        extraBufferCapacity = 5, // small buffer for bursts
+        onBufferOverflow = BufferOverflow.DROP_OLDEST // drop oldest if overflow
+    )
+
+    val locationFlow: SharedFlow<RawLocationFix> = _locationFlow
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+
     override fun onCreate() {
         super.onCreate()
         AppLogger.d(TAG, "Location capture foreground service created")
-        val fusedClient = LocationServices.getFusedLocationProviderClient(this)
-        locationCapture = LocationCapture(fusedClient)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
     }
 
     override fun onStartCommand(
@@ -48,13 +69,30 @@ class LocationForegroundService : Service() {
 
         startForeground(NOTIFICATION_ID, buildNotification())
         AppLogger.d(TAG, "Location Notification Built Success. Staring location capture now...")
-        locationCapture.start(hasLocationPermission = true)
+        startLocationUpdates()
         return START_STICKY
     }
 
+    private val locationCapture by lazy {
+        LocationCapture(fusedLocationClient) { fix ->
+            serviceScope.launch {
+                _locationFlow.emit(fix)
+            }
+        }
+    }
+
+    fun startLocationUpdates() {
+        locationCapture.start(hasLocationPermission = true)
+    }
+
+    fun stopLocationUpdates() {
+        locationCapture.stop()
+    }
+
+
     override fun onDestroy() {
         AppLogger.d(TAG, "Location capture foreground service stopped...")
-        locationCapture.stop()
+        serviceScope.cancel()
         super.onDestroy()
     }
 
@@ -69,17 +107,21 @@ class LocationForegroundService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Live Location",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
-            AppLogger.d(TAG, "Location Notification Channel created")
-        }
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Live Location",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        getSystemService(NotificationManager::class.java)
+            .createNotificationChannel(channel)
+        AppLogger.d(TAG, "Location Notification Channel created")
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    inner class LocalBinder : Binder() {
+        fun getService(): LocationForegroundService = this@LocationForegroundService
+    }
+
+    private val binder = LocalBinder()
+
+    override fun onBind(intent: Intent?): IBinder? = binder
 }

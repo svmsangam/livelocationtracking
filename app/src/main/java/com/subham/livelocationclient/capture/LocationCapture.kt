@@ -8,31 +8,26 @@ import com.subham.livelocationclient.debug.AppLogger
 private const val TAG = "LocationCapture"
 
 class LocationCapture(
-    private val fusedLocationClient: FusedLocationProviderClient
+    private val fusedLocationClient: FusedLocationProviderClient,
+    private val onLocationFix: (RawLocationFix) -> Unit
 ) {
 
     private var started = false
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
-            for (location in result.locations) {
+            val lastLocation = result.lastLocation ?: return
+            val rawFix = RawLocationFix.fromLocation(lastLocation)
+            onLocationFix(rawFix)
 
-                val rawFix = RawLocationFix(
-                    latitude = location.latitude,
-                    longitude = location.longitude,
-                    accuracyMeters = location.accuracy,
-                    deviceTimeMs = location.time
-                )
-
-                AppLogger.d(
-                    TAG,
-                    "RawLocationFix received → " +
-                            "lat=${rawFix.latitude}, " +
-                            "lon=${rawFix.longitude}, " +
-                            "accuracy=${rawFix.accuracyMeters}m, " +
-                            "deviceTime=${rawFix.deviceTimeMs}"
-                )
-            }
+            AppLogger.d(
+                TAG,
+                "RawLocationFix received → " +
+                        "lat=${rawFix.latitude}, " +
+                        "lon=${rawFix.longitude}, " +
+                        "accuracy=${rawFix.accuracyMeters}m, " +
+                        "deviceTime=${rawFix.deviceTimeMs}"
+            )
         }
     }
 

@@ -9,21 +9,28 @@
         android:id="@+id/tvStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:padding="16dp"
         android:text="Live Location Client Running"
-        android:textSize="16sp"
-        android:layout_gravity="center" />
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/locationTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Waiting for location..." />
 
     <!-- Small debug overlay (latest GPS fix) -->
     <TextView
         android:id="@+id/tvLocationDebug"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="12dp"
         android:background="#AA000000"
-        android:textColor="#FFFFFF"
         android:padding="8dp"
         android:text="Waiting for location..."
-        android:textSize="12sp"
-        android:layout_margin="12dp"
-        android:layout_gravity="top|start" />
+        android:textColor="#FFFFFF"
+        android:textSize="12sp" />
 
 </FrameLayout>
