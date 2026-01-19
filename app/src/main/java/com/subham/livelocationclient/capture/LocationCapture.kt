@@ -1,7 +1,6 @@
 package com.example.livelocationclient.capture
 
 import android.annotation.SuppressLint
-import android.util.Log
 import com.google.android.gms.location.*
 import com.subham.livelocationclient.capture.RawLocationFix
 import com.subham.livelocationclient.debug.AppLogger
@@ -9,31 +8,26 @@ import com.subham.livelocationclient.debug.AppLogger
 private const val TAG = "LocationCapture"
 
 class LocationCapture(
-    private val fusedLocationClient: FusedLocationProviderClient
+    private val fusedLocationClient: FusedLocationProviderClient,
+    private val onLocationFix: (RawLocationFix) -> Unit
 ) {
 
     private var started = false
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
-            for (location in result.locations) {
+            val lastLocation = result.lastLocation ?: return
+            val rawFix = RawLocationFix.fromLocation(lastLocation)
+            onLocationFix(rawFix)
 
-                val rawFix = RawLocationFix(
-                    latitude = location.latitude,
-                    longitude = location.longitude,
-                    accuracyMeters = location.accuracy,
-                    deviceTimeMs = location.time
-                )
-
-                AppLogger.d(
-                    TAG,
-                    "RawLocationFix received → " +
-                            "lat=${rawFix.latitude}, " +
-                            "lon=${rawFix.longitude}, " +
-                            "accuracy=${rawFix.accuracyMeters}m, " +
-                            "deviceTime=${rawFix.deviceTimeMs}"
-                )
-            }
+            AppLogger.d(
+                TAG,
+                "RawLocationFix received → " +
+                        "lat=${rawFix.latitude}, " +
+                        "lon=${rawFix.longitude}, " +
+                        "accuracy=${rawFix.accuracyMeters}m, " +
+                        "deviceTime=${rawFix.deviceTimeMs}"
+            )
         }
     }
 
@@ -44,7 +38,7 @@ class LocationCapture(
     @SuppressLint("MissingPermission")
     fun start(hasLocationPermission: Boolean) {
         if (!hasLocationPermission) {
-            Log.w(TAG, "start() ignored — location permission not granted")
+            AppLogger.d(TAG, "start() ignored — location permission not granted")
             return
         }
 
