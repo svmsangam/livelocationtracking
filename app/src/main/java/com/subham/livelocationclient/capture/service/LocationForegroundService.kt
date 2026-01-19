@@ -121,6 +121,13 @@ class LocationForegroundService : Service() {
         fun getService(): LocationForegroundService = this@LocationForegroundService
     }
 
+    //TODO: DO this on explicit user call
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     private val binder = LocalBinder()
 
     override fun onBind(intent: Intent?): IBinder? = binder
