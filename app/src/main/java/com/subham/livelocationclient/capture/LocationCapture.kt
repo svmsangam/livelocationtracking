@@ -1,8 +1,8 @@
-package com.example.livelocationclient.capture
+package com.subham.livelocationclient.capture
 
 import android.annotation.SuppressLint
 import com.google.android.gms.location.*
-import com.subham.livelocationclient.capture.RawLocationFix
+import com.subham.livelocationclient.data.RawLocationFix
 import com.subham.livelocationclient.debug.AppLogger
 
 private const val TAG = "LocationCapture"
