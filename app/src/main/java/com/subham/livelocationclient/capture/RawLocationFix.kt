@@ -1,14 +1,12 @@
-package com.subham.livelocationclient.data
+package com.subham.livelocationclient.capture
 
 import android.location.Location
 
-data class RawLocationFix(
+class RawLocationFix(
     val latitude: Double,
     val longitude: Double,
     val accuracyMeters: Float,
     val deviceTimeMs: Long,
-    val speedMps: Float? = null,
-    val bearingDeg: Float? = null,
     val serverIngestTimestampMs: Long? = null
 ) {
     companion object {
@@ -17,8 +15,6 @@ data class RawLocationFix(
                 latitude = location.latitude,
                 longitude = location.longitude,
                 accuracyMeters = location.accuracy,
-                speedMps = if (location.hasSpeed()) location.speed else null,
-                bearingDeg = if (location.hasBearing()) location.bearing else null,
                 deviceTimeMs = location.time
             )
         }
