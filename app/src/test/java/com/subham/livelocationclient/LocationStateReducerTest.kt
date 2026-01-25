@@ -90,5 +90,12 @@ class LocationStateReducerTest {
         assertEquals(TrackingStatus.STOPPED, stopped.status)
     }
 
+    @Test
+    fun `provider error sets error message`(){
+        val started = reducer.reduce(idleState(), LocationEvent.StartTracking)
+        val error_state = reducer.reduce(started, LocationEvent.ProviderError("Error getting location from provider"))
+        assertEquals(TrackingStatus.ERROR, error_state.status)
+    }
+
 
 }

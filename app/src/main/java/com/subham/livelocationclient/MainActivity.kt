@@ -8,6 +8,7 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
+import android.widget.Button
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -26,24 +27,32 @@ class MainActivity : AppCompatActivity() {
     private var bound = false
 
     private lateinit var locationTextView: TextView
+    private lateinit var startButton: Button
+    private lateinit var stopButton: Button
+
+    private var isTracking = false
 
     // Permission launcher
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 AppLogger.d(TAG, "Location permission granted")
-                startLocationService()
+                startAndBindService()
             } else {
                 AppLogger.d(TAG, "Location permission denied")
+                updateButtonStates(false)
             }
         }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppLogger.d(TAG, "onCreate")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         locationTextView = findViewById(R.id.locationTextView)
+        startButton = findViewById(R.id.startTrackingButton)
+        stopButton = findViewById(R.id.stopTrackingButton)
 
         // Long-press to open debug log viewer
         findViewById<View>(android.R.id.content).setOnLongClickListener {
@@ -51,9 +60,16 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        AppLogger.d(TAG, "onCreate")
-        // Start permission flow
-        checkPermissionAndStart()
+        startButton.setOnClickListener {
+            checkPermissionAndStart()
+        }
+
+        stopButton.setOnClickListener {
+            stopTracking()
+        }
+
+        // Disable stop button initially (not tracking yet)
+        updateButtonStates(false)
     }
 
     private val serviceConnection = object : ServiceConnection {
@@ -62,6 +78,10 @@ class MainActivity : AppCompatActivity() {
             locationService = localBinder.getService()
             bound = true
             collectLocationFlow()
+
+            if (isTracking) {
+                locationService?.startTracking()
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -89,12 +109,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissionAndStart() {
         if (hasLocationPermission()) {
-            startLocationService()
-            bindLocationService()
+            startAndBindService()
         } else {
             AppLogger.d(TAG, "Requesting location permission")
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+    }
+
+    private fun startAndBindService() {
+        if (!bound) {
+            startLocationService()
+            bindLocationService()
+        }
+        isTracking = true
+        updateButtonStates(true)
     }
 
     private fun startLocationService() {
@@ -103,9 +131,12 @@ class MainActivity : AppCompatActivity() {
         startForegroundService(intent)
     }
 
-    private fun stopLocationService() {
-        val intent = Intent(this, LocationForegroundService::class.java)
-        stopService(intent)
+    private fun stopTracking() {
+        if (bound) {
+            locationService?.stopTracking()
+        }
+        isTracking = false
+        updateButtonStates(false)
     }
 
     private fun bindLocationService() {
@@ -116,15 +147,24 @@ class MainActivity : AppCompatActivity() {
     private fun collectLocationFlow() {
         try {
             lifecycleScope.launch {
-                locationService?.locationFlow?.collect { fix ->
-                    val text =
-                        "Lat: ${fix.latitude}, Lon: ${fix.longitude}, Time: ${fix.deviceTimeMs}"
-                    AppLogger.d(TAG, "Received location fix: $text")
-                    locationTextView.text = text
+                locationService?.state?.collect { state ->
+                    state.derivedLocation?.let { derived ->
+                        val text =
+                            "Lat: ${derived.latitude}, Lon: ${derived.longitude}, Accuracy: ${derived.accuracyMeters}m, Speed: ${derived.speedMps ?: "N/A"} m/s"
+                        AppLogger.d(TAG, "Received derived location: $text")
+                        locationTextView.text = text
+                    } ?: run {
+                        locationTextView.text = "No valid location fix"
+                    }
                 }
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error collecting locationFlow" + e.message)
         }
+    }
+
+    private fun updateButtonStates(isTracking: Boolean) {
+        startButton.isEnabled = !isTracking
+        stopButton.isEnabled = isTracking
     }
 }
