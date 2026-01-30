@@ -95,7 +95,7 @@ class LocationStateReducer(private val clock: () -> Long) {
         old.copy(
             status = TrackingStatus.ERROR,
             confidence = LocationConfidence.NONE,
-            lastError = "Some error tracking location",
+            lastError = reason,
             updatedAt = clock()
         )
 

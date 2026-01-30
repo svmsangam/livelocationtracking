@@ -50,7 +50,6 @@ class LocationForegroundService(
 
     override fun onCreate() {
         super.onCreate()
-        AppLogger.d(TAG, "Location capture foreground service created")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         trackingEngine = LocationTrackingEngine(clock = clock)
     }
@@ -63,7 +62,6 @@ class LocationForegroundService(
         flags: Int,
         startId: Int
     ): Int {
-        AppLogger.d(TAG, "Starting location capture foreground service......")
         if (!applicationContext.hasLocationPermission()) {
             AppLogger.d(
                 TAG,
@@ -72,6 +70,7 @@ class LocationForegroundService(
             stopSelf()
             return START_NOT_STICKY
         }
+        AppLogger.d(TAG, "Location foreground service started......")
         return START_STICKY
     }
 
@@ -83,14 +82,8 @@ class LocationForegroundService(
         }
     }
 
-    fun stopLocationUpdates() {
-        trackingEngine.dispatch(LocationEvent.StopTracking)
-        locationCapture.stop()
-    }
-
-
     override fun onDestroy() {
-        AppLogger.d(TAG, "Location capture foreground service stopped...")
+        AppLogger.d(TAG, "Location foreground service destroyed...")
         stopTracking()
         serviceScope.cancel()
         super.onDestroy()
@@ -132,7 +125,7 @@ class LocationForegroundService(
     //TODO: DO this on explicit user call
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        stopLocationUpdates()
+        stopTracking()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -144,10 +137,10 @@ class LocationForegroundService(
     override fun startTracking() {
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
-            AppLogger.d(TAG, "Location Notification Built Success. Staring location capture now...")
+            AppLogger.d(TAG, "Location notification created....")
             trackingEngine.dispatch(LocationEvent.StartTracking)
-            AppLogger.d(TAG, "Tracking started")
             locationCapture.start(hasLocationPermission = true)
+            AppLogger.d(TAG, "Location Capture started.........")
         } catch (ex: Exception) {
             trackingEngine.dispatch(
                 LocationEvent.ProviderError(
@@ -158,8 +151,8 @@ class LocationForegroundService(
     }
 
     override fun stopTracking() {
-        trackingEngine.dispatch(LocationEvent.StopTracking)
         locationCapture.stop()
-        AppLogger.d(TAG, "Tracking stopped")
+        trackingEngine.dispatch(LocationEvent.StopTracking)
+        AppLogger.d(TAG, "Location Capture stopped.........")
     }
 }

@@ -24,12 +24,6 @@ class LocationTrackingEngine(
         try {
             val oldState = _state.value
             val newState = reducer.reduce(oldState, event)
-
-            AppLogger.d(
-                TAG,
-                "Event=$event old=$oldState new=$newState"
-            )
-
             _state.value = newState
         } catch (ex: Exception) {
             AppLogger.e(TAG, "Reducer failed", ex.message)
