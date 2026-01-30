@@ -159,7 +159,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Error collecting locationFlow" + e.message)
+            AppLogger.e(TAG, "Error collecting locationFlow", e.message)
         }
     }
 

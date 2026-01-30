@@ -7,15 +7,14 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.subham.livelocationclient.capture.LocationCapture
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.subham.livelocationclient.R
-import com.subham.livelocationclient.capture.enums.TrackingStatus
 import com.subham.livelocationclient.capture.events.LocationEvent
 import com.subham.livelocationclient.capture.`interface`.LocationPublisher
-import com.subham.livelocationclient.capture.reducer.LocationStateReducer
 import com.subham.livelocationclient.data.LocationState
 import com.subham.livelocationclient.debug.AppLogger
 import com.subham.livelocationclient.permission.hasLocationPermission
@@ -24,37 +23,40 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val TAG = "LocationForegroundService"
 
-class LocationForegroundService : Service(), LocationPublisher {
-
+@OptIn(ExperimentalCoroutinesApi::class)
+class LocationForegroundService(
+    @VisibleForTesting
+    internal var serviceScope: CoroutineScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default.limitedParallelism(
+            1
+        )
+    ),
+    @VisibleForTesting
+    internal var clock: () -> Long = { System.currentTimeMillis() }
+) : Service(), LocationPublisher {
     companion object {
         const val CHANNEL_ID = "live_location_tracking"
         const val NOTIFICATION_ID = 1001
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val reducerDispatcher = Dispatchers.Default.limitedParallelism(1)
-    private val serviceScope = CoroutineScope(SupervisorJob() + reducerDispatcher)
+    private lateinit var trackingEngine: LocationTrackingEngine
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-
-    private val reducer = LocationStateReducer({ System.currentTimeMillis() })
-
-    private val _state =
-        MutableStateFlow(LocationState.initial())
-    override val state: StateFlow<LocationState> = _state
 
     override fun onCreate() {
         super.onCreate()
         AppLogger.d(TAG, "Location capture foreground service created")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        trackingEngine = LocationTrackingEngine(clock = clock)
     }
+
+    override val state: StateFlow<LocationState>
+        get() = trackingEngine.state
 
     override fun onStartCommand(
         intent: Intent?,
@@ -76,13 +78,13 @@ class LocationForegroundService : Service(), LocationPublisher {
     private val locationCapture by lazy {
         LocationCapture(fusedLocationClient) { fix ->
             serviceScope.launch {
-                dispatch(LocationEvent.FixReceived(fix))
+                trackingEngine.dispatch(LocationEvent.FixReceived(fix))
             }
         }
     }
 
     fun stopLocationUpdates() {
-        dispatch(LocationEvent.StopTracking)
+        trackingEngine.dispatch(LocationEvent.StopTracking)
         locationCapture.stop()
     }
 
@@ -115,26 +117,6 @@ class LocationForegroundService : Service(), LocationPublisher {
         AppLogger.d(TAG, "Location Notification Channel created")
     }
 
-    private fun dispatch(event: LocationEvent) {
-        try {
-            serviceScope.launch {
-                _state.update { oldState ->
-                    val newState = reducer.reduce(oldState, event)
-                    AppLogger.d(TAG, "Event: $event, OldState: $oldState, NewState: $newState")
-                    newState
-                }
-            }
-        }catch (ex: Exception){
-            // Log and update error state as fallback
-            AppLogger.e(TAG, "Reducer failed: ${ex.message}")
-            _state.value = _state.value.copy(
-                status = TrackingStatus.ERROR,
-                lastError = "Reducer exception: ${ex.message}",
-                updatedAt = System.currentTimeMillis()
-            )
-        }
-    }
-
     inner class LocalBinder : Binder() {
         fun getService(): LocationForegroundService = this@LocationForegroundService
 
@@ -163,11 +145,11 @@ class LocationForegroundService : Service(), LocationPublisher {
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
             AppLogger.d(TAG, "Location Notification Built Success. Staring location capture now...")
-            dispatch(LocationEvent.StartTracking)
+            trackingEngine.dispatch(LocationEvent.StartTracking)
             AppLogger.d(TAG, "Tracking started")
             locationCapture.start(hasLocationPermission = true)
         } catch (ex: Exception) {
-            dispatch(
+            trackingEngine.dispatch(
                 LocationEvent.ProviderError(
                     ex.message ?: "Unknown error during startTracking()"
                 )
@@ -176,7 +158,7 @@ class LocationForegroundService : Service(), LocationPublisher {
     }
 
     override fun stopTracking() {
-        dispatch(LocationEvent.StopTracking)
+        trackingEngine.dispatch(LocationEvent.StopTracking)
         locationCapture.stop()
         AppLogger.d(TAG, "Tracking stopped")
     }

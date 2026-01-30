@@ -26,7 +26,7 @@ class LocationStateReducer(private val clock: () -> Long) {
     }
 
     private fun onStart(old: LocationState): LocationState =
-        if(old.status == TrackingStatus.TRACKING) old
+        if (old.status == TrackingStatus.TRACKING) old
         else old.copy(
             sessionId = java.util.UUID.randomUUID().toString(),
             status = TrackingStatus.TRACKING,
@@ -40,7 +40,7 @@ class LocationStateReducer(private val clock: () -> Long) {
         if (old.status == TrackingStatus.STOPPED || old.status == TrackingStatus.IDLE) old
         else old.copy(
             status = TrackingStatus.STOPPED,
-            derivedLocation =  null,
+            derivedLocation = null,
             confidence = LocationConfidence.NONE,
             motion = MotionState.UNKNOWN,
             updatedAt = clock()
@@ -93,7 +93,7 @@ class LocationStateReducer(private val clock: () -> Long) {
 
     private fun onError(old: LocationState, reason: String): LocationState =
         old.copy(
-            status =  TrackingStatus.ERROR,
+            status = TrackingStatus.ERROR,
             confidence = LocationConfidence.NONE,
             lastError = "Some error tracking location",
             updatedAt = clock()
