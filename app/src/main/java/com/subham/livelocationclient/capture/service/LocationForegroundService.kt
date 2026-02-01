@@ -90,16 +90,6 @@ class LocationForegroundService(
         }
     }
 
-//    private val locationCapture by lazy {
-//        println("Lazy locationCapture initialized here")
-//        Thread.dumpStack()
-//        locationCaptureFactory { fix ->
-//            serviceScope.launch {
-//                trackingEngine.dispatch(LocationEvent.FixReceived(fix))
-//            }
-//        }
-//    }
-
     override fun onDestroy() {
         AppLogger.d(TAG, "Location foreground service destroyed...")
         stopTracking()
