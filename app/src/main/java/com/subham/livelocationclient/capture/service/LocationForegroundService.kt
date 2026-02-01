@@ -16,6 +16,7 @@ import com.subham.livelocationclient.R
 import com.subham.livelocationclient.capture.events.LocationEvent
 import com.subham.livelocationclient.capture.`interface`.LocationPublisher
 import com.subham.livelocationclient.data.LocationState
+import com.subham.livelocationclient.data.RawLocationFix
 import com.subham.livelocationclient.debug.AppLogger
 import com.subham.livelocationclient.permission.hasLocationPermission
 import kotlinx.coroutines.CoroutineScope
@@ -30,13 +31,13 @@ private const val TAG = "LocationForegroundService"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocationForegroundService(
-    @VisibleForTesting
+    @set:VisibleForTesting
     internal var serviceScope: CoroutineScope = CoroutineScope(
         SupervisorJob() + Dispatchers.Default.limitedParallelism(
             1
         )
     ),
-    @VisibleForTesting
+    @set:VisibleForTesting
     internal var clock: () -> Long = { System.currentTimeMillis() }
 ) : Service(), LocationPublisher {
     companion object {
@@ -45,12 +46,17 @@ class LocationForegroundService(
     }
 
     private lateinit var trackingEngine: LocationTrackingEngine
-
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+
+    @VisibleForTesting
+    internal lateinit var locationCaptureFactory: ((RawLocationFix) -> Unit) -> LocationCapture
+
+    open var locationCapture: LocationCapture? = null
 
     override fun onCreate() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        locationCaptureFactory = { callback -> LocationCapture(fusedLocationClient, callback) }
         trackingEngine = LocationTrackingEngine(clock = clock)
     }
 
@@ -74,13 +80,25 @@ class LocationForegroundService(
         return START_STICKY
     }
 
-    private val locationCapture by lazy {
-        LocationCapture(fusedLocationClient) { fix ->
-            serviceScope.launch {
-                trackingEngine.dispatch(LocationEvent.FixReceived(fix))
+    private fun initLocationCaptureIfNeeded() {
+        if (locationCapture == null) {
+            locationCapture = locationCaptureFactory { fix ->
+                serviceScope.launch {
+                    trackingEngine.dispatch(LocationEvent.FixReceived(fix))
+                }
             }
         }
     }
+
+//    private val locationCapture by lazy {
+//        println("Lazy locationCapture initialized here")
+//        Thread.dumpStack()
+//        locationCaptureFactory { fix ->
+//            serviceScope.launch {
+//                trackingEngine.dispatch(LocationEvent.FixReceived(fix))
+//            }
+//        }
+//    }
 
     override fun onDestroy() {
         AppLogger.d(TAG, "Location foreground service destroyed...")
@@ -139,7 +157,8 @@ class LocationForegroundService(
             startForeground(NOTIFICATION_ID, buildNotification())
             AppLogger.d(TAG, "Location notification created....")
             trackingEngine.dispatch(LocationEvent.StartTracking)
-            locationCapture.start(hasLocationPermission = true)
+            initLocationCaptureIfNeeded()
+            locationCapture!!.start(hasLocationPermission = true)
             AppLogger.d(TAG, "Location Capture started.........")
         } catch (ex: Exception) {
             trackingEngine.dispatch(
@@ -151,7 +170,8 @@ class LocationForegroundService(
     }
 
     override fun stopTracking() {
-        locationCapture.stop()
+        initLocationCaptureIfNeeded()
+        locationCapture!!.stop()
         trackingEngine.dispatch(LocationEvent.StopTracking)
         AppLogger.d(TAG, "Location Capture stopped.........")
     }
