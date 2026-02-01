@@ -7,15 +7,14 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.subham.livelocationclient.capture.LocationCapture
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.subham.livelocationclient.R
-import com.subham.livelocationclient.capture.enums.TrackingStatus
 import com.subham.livelocationclient.capture.events.LocationEvent
-import com.subham.livelocationclient.capture.reducer.LocationStateReducer
-import com.subham.livelocationclient.data.DerivedLocation
+import com.subham.livelocationclient.capture.`interface`.LocationPublisher
 import com.subham.livelocationclient.data.LocationState
 import com.subham.livelocationclient.data.RawLocationFix
 import com.subham.livelocationclient.debug.AppLogger
@@ -25,50 +24,50 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 private const val TAG = "LocationForegroundService"
 
-class LocationForegroundService : Service() {
-
+@OptIn(ExperimentalCoroutinesApi::class)
+class LocationForegroundService(
+    @set:VisibleForTesting
+    internal var serviceScope: CoroutineScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default.limitedParallelism(
+            1
+        )
+    ),
+    @set:VisibleForTesting
+    internal var clock: () -> Long = { System.currentTimeMillis() }
+) : Service(), LocationPublisher {
     companion object {
         const val CHANNEL_ID = "live_location_tracking"
         const val NOTIFICATION_ID = 1001
     }
 
-    private val _locationFlow = MutableSharedFlow<RawLocationFix>(
-        replay = 1, // Keeps last emitted item for new subscribers
-        extraBufferCapacity = 5, // small buffer for bursts
-        onBufferOverflow = BufferOverflow.DROP_OLDEST // drop oldest if overflow
-    )
-
-    val locationFlow: SharedFlow<RawLocationFix> = _locationFlow
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val reducerDispatcher = Dispatchers.Default.limitedParallelism(1)
-    private val serviceScope = CoroutineScope(SupervisorJob() + reducerDispatcher)
-
+    private lateinit var trackingEngine: LocationTrackingEngine
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
-    private val reducer = LocationStateReducer({ System.currentTimeMillis() })
+    @VisibleForTesting
+    internal lateinit var locationCaptureFactory: ((RawLocationFix) -> Unit) -> LocationCapture
 
-    private var locationState: LocationState = LocationState.initial()
+    open var locationCapture: LocationCapture? = null
 
     override fun onCreate() {
         super.onCreate()
-        AppLogger.d(TAG, "Location capture foreground service created")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        locationCaptureFactory = { callback -> LocationCapture(fusedLocationClient, callback) }
+        trackingEngine = LocationTrackingEngine(clock = clock)
     }
+
+    override val state: StateFlow<LocationState>
+        get() = trackingEngine.state
 
     override fun onStartCommand(
         intent: Intent?,
         flags: Int,
         startId: Int
     ): Int {
-        AppLogger.d(TAG, "Starting location capture foreground service......")
         if (!applicationContext.hasLocationPermission()) {
             AppLogger.d(
                 TAG,
@@ -77,38 +76,23 @@ class LocationForegroundService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-
-        dispatch(
-            LocationEvent.StartTracking
-        )
-        startForeground(NOTIFICATION_ID, buildNotification())
-        AppLogger.d(TAG, "Location Notification Built Success. Staring location capture now...")
-        startLocationUpdates()
+        AppLogger.d(TAG, "Location foreground service started......")
         return START_STICKY
     }
 
-    private val locationCapture by lazy {
-        LocationCapture(fusedLocationClient) { fix ->
-            serviceScope.launch {
-                _locationFlow.emit(fix)
-
-                dispatch(LocationEvent.FixReceived(fix))
+    private fun initLocationCaptureIfNeeded() {
+        if (locationCapture == null) {
+            locationCapture = locationCaptureFactory { fix ->
+                serviceScope.launch {
+                    trackingEngine.dispatch(LocationEvent.FixReceived(fix))
+                }
             }
         }
     }
 
-    fun startLocationUpdates() {
-        locationCapture.start(hasLocationPermission = true)
-    }
-
-    fun stopLocationUpdates() {
-        dispatch(LocationEvent.StopTracking)
-        locationCapture.stop()
-    }
-
-
     override fun onDestroy() {
-        AppLogger.d(TAG, "Location capture foreground service stopped...")
+        AppLogger.d(TAG, "Location foreground service destroyed...")
+        stopTracking()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -134,36 +118,22 @@ class LocationForegroundService : Service() {
         AppLogger.d(TAG, "Location Notification Channel created")
     }
 
-    private fun handleNewState(state: LocationState) {
-
-        AppLogger.d(TAG,"New Location State:  $state")
-        state.derivedLocation?.let { derived ->
-            publishToSubscribers(derived)
-        }
-
-        // Example: react to errors
-        if (state.status == TrackingStatus.ERROR) {
-            AppLogger.e(TAG, "Tracking error: ${state.lastError}")
-        }
-    }
-
-    private fun dispatch(event: LocationEvent){
-        serviceScope.launch {
-            locationState = reducer.reduce(locationState, event)
-            handleNewState(locationState)
-        }
-    }
-    private  fun publishToSubscribers(derived: DerivedLocation){
-        AppLogger.d(TAG, "Publishing to subscribers: $derived")
-    }
     inner class LocalBinder : Binder() {
         fun getService(): LocationForegroundService = this@LocationForegroundService
+
+        fun stopTracking() {
+            this@LocationForegroundService.stopTracking()
+        }
+
+        fun startTracking() {
+            this@LocationForegroundService.startTracking()
+        }
     }
 
     //TODO: DO this on explicit user call
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        stopLocationUpdates()
+        stopTracking()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -172,4 +142,27 @@ class LocationForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = binder
 
+    override fun startTracking() {
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+            AppLogger.d(TAG, "Location notification created....")
+            trackingEngine.dispatch(LocationEvent.StartTracking)
+            initLocationCaptureIfNeeded()
+            locationCapture!!.start(hasLocationPermission = true)
+            AppLogger.d(TAG, "Location Capture started.........")
+        } catch (ex: Exception) {
+            trackingEngine.dispatch(
+                LocationEvent.ProviderError(
+                    ex.message ?: "Unknown error during startTracking()"
+                )
+            )
+        }
+    }
+
+    override fun stopTracking() {
+        initLocationCaptureIfNeeded()
+        locationCapture!!.stop()
+        trackingEngine.dispatch(LocationEvent.StopTracking)
+        AppLogger.d(TAG, "Location Capture stopped.........")
+    }
 }

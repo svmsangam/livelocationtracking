@@ -18,16 +18,8 @@ class LocationCapture(
         override fun onLocationResult(result: LocationResult) {
             val lastLocation = result.lastLocation ?: return
             val rawFix = RawLocationFix.fromLocation(lastLocation)
+            AppLogger.d(TAG, "RawLocationFix received")
             onLocationFix(rawFix)
-
-            AppLogger.d(
-                TAG,
-                "RawLocationFix received → " +
-                        "lat=${rawFix.latitude}, " +
-                        "lon=${rawFix.longitude}, " +
-                        "accuracy=${rawFix.accuracyMeters}m, " +
-                        "deviceTime=${rawFix.deviceTimeMs}"
-            )
         }
     }
 
@@ -55,7 +47,7 @@ class LocationCapture(
             .setMaxUpdateDelayMillis(10_000L)
             .build()
 
-        AppLogger.d(TAG, "Requesting location updates")
+        AppLogger.d(TAG, "Location capture Requesting location updates")
 
         fusedLocationClient.requestLocationUpdates(
             locationRequest,

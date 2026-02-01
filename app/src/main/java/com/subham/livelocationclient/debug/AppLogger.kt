@@ -5,8 +5,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
+
 object AppLogger {
 
+    var enabled = true
     private const val MAX_LOGS = 300
     private val logs = CopyOnWriteArrayList<String>()
 
@@ -15,17 +17,19 @@ object AppLogger {
 
     fun d(tag: String, message: String) {
         add("D", tag, message)
-        Log.d(tag, message)
+        if (enabled)
+            Log.d(tag, message)
     }
 
-    fun e(tag: String, message: String) {
-        add("E", tag, message)
+    fun e(tag: String, message: String, exception: String?) {
+        val safeException = exception ?: "Unknown Exception"
+        add("E", tag, message, safeException)
         Log.e(tag, message)
     }
 
-    private fun add(level: String, tag: String, message: String) {
+    private fun add(level: String, tag: String, message: String, exception: String = "") {
         val timestamp = formatter.format(Date())
-        val entry = "$timestamp [$level/$tag] $message"
+        val entry = "$timestamp [$level/$tag] $message $exception"
 
         logs.add(entry)
 

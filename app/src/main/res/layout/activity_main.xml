@@ -1,36 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/rootContainer"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:padding="16dp">
 
-    <!-- Placeholder for future Map (Google Map / Mapbox) -->
+    <!-- Placeholder for future Map (centered) -->
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:padding="16dp"
         android:text="Live Location Client Running"
-        android:textSize="16sp" />
+        android:textSize="16sp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
+    <!-- Location Text -->
     <TextView
         android:id="@+id/locationTextView"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="Waiting for location..." />
-
-    <!-- Small debug overlay (latest GPS fix) -->
-    <TextView
-        android:id="@+id/tvLocationDebug"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_margin="12dp"
-        android:background="#AA000000"
-        android:padding="8dp"
         android:text="Waiting for location..."
-        android:textColor="#FFFFFF"
-        android:textSize="12sp" />
+        android:textSize="14sp"
+        app:layout_constraintTop_toBottomOf="@id/tvStatus"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"/>
 
-</FrameLayout>
+    <!-- Start Tracking Button -->
+    <Button
+        android:id="@+id/startTrackingButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Start Tracking"
+        app:layout_constraintTop_toBottomOf="@id/locationTextView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/stopTrackingButton"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="8dp"/>
+
+    <!-- Stop Tracking Button -->
+    <Button
+        android:id="@+id/stopTrackingButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Stop Tracking"
+        app:layout_constraintTop_toBottomOf="@id/locationTextView"
+        app:layout_constraintStart_toEndOf="@id/startTrackingButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="24dp"
+        android:layout_marginStart="8dp"/>
+
+    <!-- Small debug overlay at top-left -->
+
+</androidx.constraintlayout.widget.ConstraintLayout>
