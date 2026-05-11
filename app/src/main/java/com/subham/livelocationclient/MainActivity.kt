@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
@@ -31,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stopButton: Button
 
     private var isTracking = false
+
+    private lateinit var loginButton: Button
 
     // Permission launcher
     private val requestPermissionLauncher =
@@ -69,6 +72,17 @@ class MainActivity : AppCompatActivity() {
 
         // Disable stop button initially (not tracking yet)
         updateButtonStates(false)
+
+        loginButton = findViewById(R.id.loginButton)
+
+        loginButton.setOnClickListener {
+            try{
+            val intent = Intent(this, LoginActivity::class.java)
+            startActivity(intent)
+            }catch (ex: Exception){
+                Log.e("E",ex.message.toString())
+            }
+        }
     }
 
     private val serviceConnection = object : ServiceConnection {
